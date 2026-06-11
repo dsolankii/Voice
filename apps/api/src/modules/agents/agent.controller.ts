@@ -19,6 +19,16 @@ function getRequiredUserId(req: AuthRequest): string {
   return req.userId;
 }
 
+function getRequiredParam(value: string | string[] | undefined, name: string): string {
+  if (!value || Array.isArray(value)) {
+    const error = new Error(`Missing or invalid ${name}`);
+    error.name = "BadRequestError";
+    throw error;
+  }
+
+  return value;
+}
+
 export async function createAgentController(req: AuthRequest, res: Response) {
   const userId = getRequiredUserId(req);
   const input = createAgentSchema.parse(req.body);
@@ -40,7 +50,8 @@ export async function listAgentsController(req: AuthRequest, res: Response) {
 
 export async function getAgentController(req: AuthRequest, res: Response) {
   const userId = getRequiredUserId(req);
-  const agent = await getAgentById(userId, req.params.id);
+  const agentId = getRequiredParam(req.params.id, "agent id");
+  const agent = await getAgentById(userId, agentId);
 
   return res.json({
     agent,
@@ -49,8 +60,9 @@ export async function getAgentController(req: AuthRequest, res: Response) {
 
 export async function updateAgentController(req: AuthRequest, res: Response) {
   const userId = getRequiredUserId(req);
+  const agentId = getRequiredParam(req.params.id, "agent id");
   const input = updateAgentSchema.parse(req.body);
-  const agent = await updateAgent(userId, req.params.id, input);
+  const agent = await updateAgent(userId, agentId, input);
 
   return res.json({
     agent,
@@ -59,7 +71,8 @@ export async function updateAgentController(req: AuthRequest, res: Response) {
 
 export async function deleteAgentController(req: AuthRequest, res: Response) {
   const userId = getRequiredUserId(req);
-  const agent = await deleteAgent(userId, req.params.id);
+  const agentId = getRequiredParam(req.params.id, "agent id");
+  const agent = await deleteAgent(userId, agentId);
 
   return res.json({
     agent,
