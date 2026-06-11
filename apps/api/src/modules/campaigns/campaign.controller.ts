@@ -4,6 +4,7 @@ import {
   createCampaign,
   deleteCampaign,
   getCampaignById,
+  getCampaignSummary,
   listCampaigns,
   updateCampaign,
 } from "./campaign.service.js";
@@ -58,6 +59,19 @@ export async function getCampaignController(req: AuthRequest, res: Response) {
 
   return res.json({
     campaign,
+  });
+}
+
+export async function getCampaignSummaryController(
+  req: AuthRequest,
+  res: Response
+) {
+  const userId = getRequiredUserId(req);
+  const campaignId = getRequiredParam(req.params.id, "campaign id");
+  const summary = await getCampaignSummary(userId, campaignId);
+
+  return res.json({
+    summary,
   });
 }
 

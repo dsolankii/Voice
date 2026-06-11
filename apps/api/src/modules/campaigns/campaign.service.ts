@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { getAgentById } from "../agents/agent.service.js";
 import { ContactModel } from "../contacts/contact.model.js";
+import { CallModel } from "../calls/call.model.js";
 import { CampaignModel } from "./campaign.model.js";
 import type {
   CreateCampaignInput,
@@ -190,4 +191,133 @@ export async function deleteCampaign(userId: string, campaignId: string) {
   }
 
   return toSafeCampaign(campaign.toObject());
+}
+
+export async function getCampaignSummary(userId: string, campaignId: string) {
+  const campaign = await getCampaignById(userId, campaignId);
+
+  const calls = await CallModel.find({
+    campaignId,
+    createdBy: userId,
+  }).lean<{
+    status?: string | null;
+    outcome?: {
+      sentiment?: string | null;
+      leadStatus?: string | null;
+      confidence?: number | null;
+    } | null;
+  }[]>();
+
+  const summary = {
+    campaign,
+    totals: {
+      contacts: campaign.contactCount,
+      calls: calls.length,
+      pending: 0,
+      transcriptReady: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0,
+    },
+    leadStatus: {
+      interested: 0,
+      notInterested: 0,
+      callbackRequested: 0,
+      wrongNumber: 0,
+      noAnswer: 0,
+      needsMoreInfo: 0,
+      unknown: 0,
+    },
+    sentiment: {
+      positive: 0,
+      neutral: 0,
+      negative: 0,
+      mixed: 0,
+    },
+    quality: {
+      averageConfidence: null as number | null,
+      analyzedCalls: 0,
+    },
+  };
+
+  let confidenceSum = 0;
+  let confidenceCount = 0;
+
+  for (const call of calls) {
+    switch (call.status) {
+      case "pending":
+        summary.totals.pending += 1;
+        break;
+      case "transcript_ready":
+        summary.totals.transcriptReady += 1;
+        break;
+      case "processing":
+        summary.totals.processing += 1;
+        break;
+      case "completed":
+        summary.totals.completed += 1;
+        break;
+      case "failed":
+        summary.totals.failed += 1;
+        break;
+    }
+
+    if (!call.outcome) {
+      continue;
+    }
+
+    summary.quality.analyzedCalls += 1;
+
+    switch (call.outcome.leadStatus) {
+      case "interested":
+        summary.leadStatus.interested += 1;
+        break;
+      case "not_interested":
+        summary.leadStatus.notInterested += 1;
+        break;
+      case "callback_requested":
+        summary.leadStatus.callbackRequested += 1;
+        break;
+      case "wrong_number":
+        summary.leadStatus.wrongNumber += 1;
+        break;
+      case "no_answer":
+        summary.leadStatus.noAnswer += 1;
+        break;
+      case "needs_more_info":
+        summary.leadStatus.needsMoreInfo += 1;
+        break;
+      default:
+        summary.leadStatus.unknown += 1;
+        break;
+    }
+
+    switch (call.outcome.sentiment) {
+      case "positive":
+        summary.sentiment.positive += 1;
+        break;
+      case "neutral":
+        summary.sentiment.neutral += 1;
+        break;
+      case "negative":
+        summary.sentiment.negative += 1;
+        break;
+      case "mixed":
+        summary.sentiment.mixed += 1;
+        break;
+    }
+
+    if (typeof call.outcome.confidence === "number") {
+      confidenceSum += call.outcome.confidence;
+      confidenceCount += 1;
+    }
+  }
+
+  if (confidenceCount > 0) {
+    summary.quality.averageConfidence = Number(
+      (confidenceSum / confidenceCount).toFixed(2)
+    );
+  }
+
+  return summary;
 }
