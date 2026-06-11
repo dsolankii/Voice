@@ -17,6 +17,12 @@ export function errorMiddleware(
   }
 
   if (error instanceof Error) {
+    if (error.name === "BadRequestError") {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
     if (error.name === "ConflictError") {
       return res.status(409).json({
         message: error.message,
@@ -25,6 +31,12 @@ export function errorMiddleware(
 
     if (error.name === "UnauthorizedError") {
       return res.status(401).json({
+        message: error.message,
+      });
+    }
+
+    if (error.name === "NotFoundError") {
+      return res.status(404).json({
         message: error.message,
       });
     }
