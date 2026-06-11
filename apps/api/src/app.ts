@@ -7,6 +7,7 @@ import { agentRoutes } from "./modules/agents/agent.routes.js";
 import { aiRoutes } from "./modules/ai/ai.routes.js";
 import { contactRoutes } from "./modules/contacts/contact.routes.js";
 import { campaignRoutes } from "./modules/campaigns/campaign.routes.js";
+import { callRoutes } from "./modules/calls/call.routes.js";
 import { errorMiddleware } from "./middleware/error.middleware.js";
 
 export const app = express();
@@ -33,5 +34,6 @@ app.use("/api/agents", agentRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/contacts", contactRoutes);
 app.use("/api/campaigns", campaignRoutes);
+app.use("/api/calls", callRoutes);
 
 app.use(errorMiddleware);
