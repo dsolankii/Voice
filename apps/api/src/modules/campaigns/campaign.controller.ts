@@ -4,6 +4,7 @@ import {
   createCampaign,
   deleteCampaign,
   getCampaignById,
+  getCampaignExportCsv,
   getCampaignSummary,
   listCampaigns,
   updateCampaign,
@@ -73,6 +74,23 @@ export async function getCampaignSummaryController(
   return res.json({
     summary,
   });
+}
+
+export async function exportCampaignController(
+  req: AuthRequest,
+  res: Response
+) {
+  const userId = getRequiredUserId(req);
+  const campaignId = getRequiredParam(req.params.id, "campaign id");
+  const csv = await getCampaignExportCsv(userId, campaignId);
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="campaign-${campaignId}-export.csv"`
+  );
+
+  return res.status(200).send(csv);
 }
 
 export async function updateCampaignController(req: AuthRequest, res: Response) {

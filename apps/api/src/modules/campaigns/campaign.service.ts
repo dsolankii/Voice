@@ -321,3 +321,191 @@ export async function getCampaignSummary(userId: string, campaignId: string) {
 
   return summary;
 }
+
+type ExportContactLike = {
+  _id: unknown;
+  name: string;
+  phone: string;
+  email?: string | null;
+  company?: string | null;
+  notes?: string | null;
+};
+
+type ExportCallLike = {
+  _id: unknown;
+  contactId: unknown;
+  status?: string | null;
+  transcript?: string | null;
+  outcome?: {
+    summary?: string | null;
+    sentiment?: string | null;
+    intent?: string | null;
+    leadStatus?: string | null;
+    callbackTime?: string | null;
+    objections?: string[] | null;
+    nextAction?: string | null;
+    confidence?: number | null;
+  } | null;
+  outcomeExtractedAt?: unknown;
+  createdAt?: unknown;
+};
+
+function escapeCsvValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const stringValue = String(value);
+  const escapedValue = stringValue.replace(/"/g, '""');
+
+  if (
+    escapedValue.includes(",") ||
+    escapedValue.includes('"') ||
+    escapedValue.includes("\n") ||
+    escapedValue.includes("\r")
+  ) {
+    return `"${escapedValue}"`;
+  }
+
+  return escapedValue;
+}
+
+function formatDateForCsv(value: unknown) {
+  if (!value) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return String(value);
+}
+
+function buildCsvRow(values: unknown[]) {
+  return values.map(escapeCsvValue).join(",");
+}
+
+export async function getCampaignExportCsv(userId: string, campaignId: string) {
+  const campaign = await getCampaignById(userId, campaignId);
+
+  const contacts = await ContactModel.find({
+    _id: {
+      $in: campaign.contactIds,
+    },
+    createdBy: userId,
+  })
+    .sort({
+      createdAt: 1,
+    })
+    .lean<ExportContactLike[]>();
+
+  const calls = await CallModel.find({
+    campaignId,
+    createdBy: userId,
+  })
+    .sort({
+      createdAt: 1,
+    })
+    .lean<ExportCallLike[]>();
+
+  const callsByContactId = new Map<string, ExportCallLike[]>();
+
+  for (const call of calls) {
+    const contactId = String(call.contactId);
+    const existingCalls = callsByContactId.get(contactId) || [];
+    existingCalls.push(call);
+    callsByContactId.set(contactId, existingCalls);
+  }
+
+  const header = [
+    "campaign_id",
+    "campaign_name",
+    "contact_id",
+    "contact_name",
+    "phone",
+    "email",
+    "company",
+    "contact_notes",
+    "call_id",
+    "call_status",
+    "call_created_at",
+    "outcome_extracted_at",
+    "summary",
+    "sentiment",
+    "intent",
+    "lead_status",
+    "callback_time",
+    "objections",
+    "next_action",
+    "confidence",
+    "transcript",
+  ];
+
+  const rows = [buildCsvRow(header)];
+
+  for (const contact of contacts) {
+    const contactId = String(contact._id);
+    const contactCalls = callsByContactId.get(contactId) || [];
+
+    if (contactCalls.length === 0) {
+      rows.push(
+        buildCsvRow([
+          campaign.id,
+          campaign.name,
+          contactId,
+          contact.name,
+          contact.phone,
+          contact.email,
+          contact.company,
+          contact.notes,
+          "",
+          "not_called",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ])
+      );
+
+      continue;
+    }
+
+    for (const call of contactCalls) {
+      rows.push(
+        buildCsvRow([
+          campaign.id,
+          campaign.name,
+          contactId,
+          contact.name,
+          contact.phone,
+          contact.email,
+          contact.company,
+          contact.notes,
+          String(call._id),
+          call.status,
+          formatDateForCsv(call.createdAt),
+          formatDateForCsv(call.outcomeExtractedAt),
+          call.outcome?.summary,
+          call.outcome?.sentiment,
+          call.outcome?.intent,
+          call.outcome?.leadStatus,
+          call.outcome?.callbackTime,
+          call.outcome?.objections?.join("; "),
+          call.outcome?.nextAction,
+          call.outcome?.confidence,
+          call.transcript,
+        ])
+      );
+    }
+  }
+
+  return rows.join("\n");
+}

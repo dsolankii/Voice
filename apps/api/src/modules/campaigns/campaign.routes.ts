@@ -4,6 +4,7 @@ import { asyncHandler } from "../../utils/async-handler.js";
 import {
   createCampaignController,
   deleteCampaignController,
+  exportCampaignController,
   getCampaignController,
   getCampaignSummaryController,
   listCampaignsController,
@@ -16,6 +17,7 @@ campaignRoutes.use(requireAuth);
 
 campaignRoutes.post("/", asyncHandler(createCampaignController));
 campaignRoutes.get("/", asyncHandler(listCampaignsController));
+campaignRoutes.get("/:id/export", asyncHandler(exportCampaignController));
 campaignRoutes.get("/:id/summary", asyncHandler(getCampaignSummaryController));
 campaignRoutes.get("/:id", asyncHandler(getCampaignController));
 campaignRoutes.patch("/:id", asyncHandler(updateCampaignController));
