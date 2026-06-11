@@ -5,7 +5,9 @@
   "description": "AI Voice Campaign Simulator and Call Outcome Extractor",
   "scripts": {
     "dev:api": "pnpm --dir apps/api dev",
-    "build:api": "pnpm --dir apps/api build"
+    "build:api": "pnpm --dir apps/api build",
+    "dev:web": "pnpm --dir apps/web dev",
+    "build:web": "pnpm --dir apps/web build"
   },
   "keywords": [
     "ai",
