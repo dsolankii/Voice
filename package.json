@@ -1,0 +1,19 @@
+{
+  "name": "voice-ai-campaign-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Voice Campaign Simulator and Call Outcome Extractor",
+  "scripts": {
+    "dev:api": "pnpm --dir apps/api dev",
+    "build:api": "pnpm --dir apps/api build"
+  },
+  "keywords": [
+    "ai",
+    "voice-ai",
+    "campaigns",
+    "call-analysis",
+    "full-stack-ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}
