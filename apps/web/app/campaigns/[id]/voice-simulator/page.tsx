@@ -161,6 +161,7 @@ export default function VoiceSimulatorPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [generatingReply, setGeneratingReply] = useState(false);
   const [error, setError] = useState("");
 
   const selectedContact = useMemo(
@@ -295,12 +296,38 @@ export default function VoiceSimulatorPage() {
     setManualText("");
   }
 
-  function addAgentReply() {
-    const reply =
-      "Thank you for sharing that. I will note your requirement and our team will follow up with suitable options.";
+  async function addAgentReply() {
+    if (!agent) {
+      setError("Agent is not loaded yet.");
+      return;
+    }
 
-    setTranscriptLines((prev) => [...prev, `Agent: ${reply}`]);
-    speak(reply);
+    if (fullTranscript.trim().length < 10) {
+      setError("Add at least one transcript line before generating an AI reply.");
+      return;
+    }
+
+    setGeneratingReply(true);
+    setError("");
+
+    try {
+      const response = await apiRequest<{ reply: string }>("/api/ai/generate-reply", {
+        method: "POST",
+        body: JSON.stringify({
+          agentId: agent.id,
+          transcript: fullTranscript,
+          contactName: selectedContact?.name,
+          campaignObjective: campaign?.objective,
+        }),
+      });
+
+      setTranscriptLines((prev) => [...prev, `Agent: ${response.reply}`]);
+      speak(response.reply);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate AI reply");
+    } finally {
+      setGeneratingReply(false);
+    }
   }
 
   function clearTranscript() {
@@ -543,9 +570,10 @@ export default function VoiceSimulatorPage() {
                 </button>
                 <button
                   onClick={addAgentReply}
-                  className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+                  disabled={generatingReply}
+                  className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Agent follow-up
+                  {generatingReply ? "Generating..." : "Generate AI Reply"}
                 </button>
               </div>
             </div>
