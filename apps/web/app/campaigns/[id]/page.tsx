@@ -187,6 +187,11 @@ export default function CampaignDetailPage() {
     );
   }
 
+  const canPrepareCalls = campaign.status === "draft";
+  const canRunSimulations =
+    campaign.status === "draft" || campaign.status === "running";
+  const canExtractOutcomes = campaign.status !== "archived";
+
   return (
     <AppShell>
       <div className="flex flex-col gap-6">
@@ -253,20 +258,24 @@ export default function CampaignDetailPage() {
                 Restore Draft
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="secondary"
-              loading={preparingCalls}
-              onClick={handlePrepareCalls}
-            >
-              Prepare Calls
-            </Button>
-              <Link
-                href={`/campaigns/${campaign.id}/voice-simulator`}
-                className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+            {canPrepareCalls ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={preparingCalls}
+                onClick={handlePrepareCalls}
               >
-                🎙 Voice Simulator
-              </Link>
+                Prepare Calls
+              </Button>
+            ) : null}
+              {canRunSimulations ? (
+                <Link
+                  href={`/campaigns/${campaign.id}/voice-simulator`}
+                  className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+                >
+                  🎙 Voice Simulator
+                </Link>
+              ) : null}
 
             <Button
               size="sm"
@@ -449,7 +458,7 @@ export default function CampaignDetailPage() {
                         {call.outcome?.nextAction ?? "—"}
                       </td>
                       <td className="py-3 text-right">
-                        {call.status === "pending" ? (
+                        {canRunSimulations && call.status === "pending" ? (
                           <Link
                             href={`/campaigns/${id}/voice-simulator?callId=${call.id}&contactId=${getContactId(call.contactId)}`}
                             className="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
@@ -457,6 +466,7 @@ export default function CampaignDetailPage() {
                             🎙 Start Simulation
                           </Link>
                         ) : null}
+                        {canExtractOutcomes && call.status !== "pending" ? (
                         <Button
                           size="sm"
                           variant={
@@ -475,6 +485,7 @@ export default function CampaignDetailPage() {
                             ? "Re-extract"
                             : "✨ Extract"}
                         </Button>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
