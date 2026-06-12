@@ -18,7 +18,10 @@ const VOICE_STYLES = [
   "energetic",
 ] as const;
 
-const VOICE_STYLE_COLORS: Record<string, "purple" | "success" | "info" | "warning" | "default"> = {
+const VOICE_STYLE_COLORS: Record<
+  string,
+  "purple" | "success" | "info" | "warning" | "default"
+> = {
   professional: "purple",
   friendly: "success",
   casual: "info",
@@ -26,15 +29,24 @@ const VOICE_STYLE_COLORS: Record<string, "purple" | "success" | "info" | "warnin
   energetic: "default",
 };
 
+const DEFAULT_CLOSING =
+  "Thanks for your time. Have a great day. Goodbye.";
+
 const EMPTY_FORM = {
   name: "",
   persona: "",
   companyContext: "",
   callObjective: "",
   openingMessage: "",
+  closingMessage: DEFAULT_CLOSING,
+  conversationGuidelines: "",
   language: "en",
   voiceStyle: "professional" as Agent["voiceStyle"],
 };
+
+function countText(value: string) {
+  return value.trim().length;
+}
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -63,8 +75,14 @@ export default function AgentsPage() {
     e.preventDefault();
     setError("");
     setSubmitting(true);
+
     try {
-      await createAgent(form);
+      await createAgent({
+        ...form,
+        companyContext: form.companyContext.trim(),
+        closingMessage: form.closingMessage.trim() || DEFAULT_CLOSING,
+        conversationGuidelines: form.conversationGuidelines.trim(),
+      });
       setForm(EMPTY_FORM);
       setShowForm(false);
       await load();
@@ -77,6 +95,7 @@ export default function AgentsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this agent?")) return;
+
     try {
       await deleteAgent(id);
       setAgents((prev) => prev.filter((a) => a.id !== id));
@@ -88,12 +107,11 @@ export default function AgentsPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Agents</h1>
             <p className="text-sm text-slate-500 mt-1">
-              AI callers with custom personas and objectives
+              Configure persona, objective, opening, closing, and call rules.
             </p>
           </div>
           <Button onClick={() => setShowForm(!showForm)}>
@@ -101,26 +119,40 @@ export default function AgentsPage() {
           </Button>
         </div>
 
-        {/* Create form */}
         {showForm && (
           <Card>
-            <h2 className="text-base font-semibold text-slate-900 mb-5">
-              Create agent
-            </h2>
+            <div className="mb-5">
+              <h2 className="text-base font-semibold text-slate-900">
+                Create agent
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Keep opening and closing short. Put long scripts, objection
+                handling, and call-flow rules in conversation guidelines.
+              </p>
+            </div>
+
             <form
               onSubmit={handleCreate}
               className="grid grid-cols-1 md:grid-cols-2 gap-4"
             >
               <Input
                 label="Agent name"
-                placeholder="e.g. Sales Rahul"
+                placeholder="e.g. Real Estate Rahul"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
+
+              <Input
+                label="Language"
+                placeholder="en"
+                value={form.language}
+                onChange={(e) => setForm({ ...form, language: e.target.value })}
+              />
+
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-slate-700">
-                  Voice style
+                  Speaking style
                 </label>
                 <select
                   value={form.voiceStyle}
@@ -132,59 +164,116 @@ export default function AgentsPage() {
                   }
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 >
-                  {VOICE_STYLES.map((s) => (
-                    <option key={s} value={s}>
-                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                  {VOICE_STYLES.map((style) => (
+                    <option key={style} value={style}>
+                      {style.charAt(0).toUpperCase() + style.slice(1)}
                     </option>
                   ))}
                 </select>
               </div>
-              <Input
-                label="Language"
-                placeholder="en"
-                value={form.language}
-                onChange={(e) => setForm({ ...form, language: e.target.value })}
-              />
-              <Input
-                label="Call objective"
-                placeholder="e.g. Book a site visit for 2BHK apartments"
-                value={form.callObjective}
-                onChange={(e) =>
-                  setForm({ ...form, callObjective: e.target.value })
-                }
-                required
-              />
+
               <div className="md:col-span-2">
                 <Textarea
                   label="Persona"
-                  placeholder="e.g. You are a helpful real estate advisor..."
-                  rows={3}
+                  placeholder="e.g. You are a friendly, energetic male real estate calling agent. You sound confident, natural, and helpful."
+                  rows={4}
                   value={form.persona}
-                  onChange={(e) => setForm({ ...form, persona: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, persona: e.target.value })
+                  }
                   required
                 />
+                <p className="mt-1 text-xs text-slate-400">
+                  {countText(form.persona)} / 6000 characters
+                </p>
               </div>
+
+              <div className="md:col-span-2">
+                <Textarea
+                  label="Call objective"
+                  placeholder="e.g. Qualify the customer for property interest, location, budget, timeline, and callback preference."
+                  rows={3}
+                  value={form.callObjective}
+                  onChange={(e) =>
+                    setForm({ ...form, callObjective: e.target.value })
+                  }
+                  required
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  {countText(form.callObjective)} / 4000 characters
+                </p>
+              </div>
+
               <div className="md:col-span-2">
                 <Textarea
                   label="Company context"
-                  placeholder="e.g. ABC Realty is a premium developer in Pune with 10+ projects..."
-                  rows={3}
+                  placeholder="Optional: company details, product details, locations, offers, eligibility, pricing, FAQs, etc."
+                  rows={4}
                   value={form.companyContext}
                   onChange={(e) =>
                     setForm({ ...form, companyContext: e.target.value })
                   }
                 />
+                <p className="mt-1 text-xs text-slate-400">
+                  Optional · {countText(form.companyContext)} / 6000 characters
+                </p>
               </div>
+
               <div className="md:col-span-2">
                 <Textarea
                   label="Opening message"
-                  placeholder="e.g. Hi! This is Rahul from ABC Realty. Is this a good time to talk about your dream home?"
-                  rows={2}
+                  placeholder="e.g. Hi, this is Rahul from ABC Realty. Is this a good time to talk for a minute?"
+                  rows={3}
                   value={form.openingMessage}
                   onChange={(e) =>
                     setForm({ ...form, openingMessage: e.target.value })
                   }
+                  required
                 />
+                <p className="mt-1 text-xs text-slate-400">
+                  First thing the agent says · {countText(form.openingMessage)} /
+                  2500 characters
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
+                <Textarea
+                  label="Closing message"
+                  placeholder={DEFAULT_CLOSING}
+                  rows={2}
+                  value={form.closingMessage}
+                  onChange={(e) =>
+                    setForm({ ...form, closingMessage: e.target.value })
+                  }
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Used when the call naturally ends ·{" "}
+                  {countText(form.closingMessage)} / 1200 characters
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
+                <Textarea
+                  label="Conversation guidelines"
+                  placeholder={`Optional but recommended:
+- Ask one question at a time.
+- If customer is busy, ask for callback time.
+- If interested, collect location, budget, timeline, and site visit preference.
+- If not interested, politely close.
+- Do not read these rules aloud.`}
+                  rows={7}
+                  value={form.conversationGuidelines}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      conversationGuidelines: e.target.value,
+                    })
+                  }
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Long script, call flow, objection handling ·{" "}
+                  {countText(form.conversationGuidelines)} / 8000 characters
+                </p>
               </div>
 
               {error && (
@@ -209,7 +298,6 @@ export default function AgentsPage() {
           </Card>
         )}
 
-        {/* Agent list */}
         {loading ? (
           <div className="text-sm text-slate-400 py-8 text-center">
             Loading agents...
@@ -241,19 +329,29 @@ export default function AgentsPage() {
                       <p className="text-xs text-slate-400">{agent.language}</p>
                     </div>
                   </div>
+
                   <Badge
                     label={agent.voiceStyle}
                     variant={VOICE_STYLE_COLORS[agent.voiceStyle] ?? "default"}
                   />
                 </div>
+
                 <p className="text-xs text-slate-500 leading-relaxed mb-3 line-clamp-2">
                   {agent.callObjective}
                 </p>
+
                 {agent.persona && (
                   <p className="text-xs text-slate-400 italic line-clamp-2 mb-4">
                     {agent.persona}
                   </p>
                 )}
+
+                {agent.conversationGuidelines ? (
+                  <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                    Custom conversation rules added
+                  </div>
+                ) : null}
+
                 <div className="flex justify-end pt-3 border-t border-slate-50">
                   <Button
                     variant="ghost"

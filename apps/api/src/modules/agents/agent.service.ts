@@ -6,9 +6,11 @@ function toSafeAgent(agent: {
   _id: unknown;
   name: string;
   persona: string;
-  companyContext: string;
+  companyContext?: string | null;
   callObjective: string;
   openingMessage: string;
+  closingMessage?: string | null;
+  conversationGuidelines?: string | null;
   language: string;
   voiceStyle: string;
   status: string;
@@ -20,9 +22,13 @@ function toSafeAgent(agent: {
     id: String(agent._id),
     name: agent.name,
     persona: agent.persona,
-    companyContext: agent.companyContext,
+    companyContext: agent.companyContext || "",
     callObjective: agent.callObjective,
     openingMessage: agent.openingMessage,
+    closingMessage:
+      agent.closingMessage ||
+      "Thanks for your time. Have a great day. Goodbye.",
+    conversationGuidelines: agent.conversationGuidelines || "",
     language: agent.language,
     voiceStyle: agent.voiceStyle,
     status: agent.status,

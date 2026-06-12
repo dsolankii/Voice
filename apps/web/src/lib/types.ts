@@ -11,6 +11,8 @@ export type Agent = {
   companyContext: string;
   callObjective: string;
   openingMessage: string;
+  closingMessage?: string;
+  conversationGuidelines?: string;
   language: string;
   voiceStyle: "professional" | "friendly" | "casual" | "empathetic" | "energetic";
   status: "active" | "archived";
