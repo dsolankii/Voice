@@ -25,4 +25,6 @@ export const env = {
   aiProvider: process.env.AI_PROVIDER || "mock",
   aiApiKey: process.env.AI_API_KEY || "",
   aiModel: process.env.AI_MODEL || "gemini-3.5-flash",
+  aiLiveModel:
+    process.env.AI_LIVE_MODEL || "gemini-3.1-flash-live-preview",
 };
