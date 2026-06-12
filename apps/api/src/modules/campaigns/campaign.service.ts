@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { getAgentById } from "../agents/agent.service.js";
 import { ContactModel } from "../contacts/contact.model.js";
+import { getContactListById } from "../contact-lists/contact-list.service.js";
 import { CallModel } from "../calls/call.model.js";
 import { CampaignModel } from "./campaign.model.js";
 import type {
@@ -14,6 +15,7 @@ type CampaignLike = {
   description?: string | null;
   objective: string;
   agentId: unknown;
+  contactListId?: unknown | null;
   contactIds?: unknown[] | null;
   status?: string | null;
   createdBy: unknown;
@@ -28,6 +30,7 @@ function toSafeCampaign(campaign: CampaignLike) {
     description: campaign.description || null,
     objective: campaign.objective,
     agentId: String(campaign.agentId),
+    contactListId: campaign.contactListId ? String(campaign.contactListId) : null,
     contactIds: Array.isArray(campaign.contactIds)
       ? campaign.contactIds.map((contactId) => String(contactId))
       : [],
@@ -84,9 +87,19 @@ export async function createCampaign(
 
   await getAgentById(userId, input.agentId);
 
+  let contactIds = input.contactIds ?? [];
+  let contactListId: string | undefined;
+
+  if (input.contactListId) {
+    assertValidObjectId(input.contactListId, "contact list id");
+    const contactList = await getContactListById(userId, input.contactListId);
+    contactListId = contactList.id;
+    contactIds = contactList.contactIds;
+  }
+
   const uniqueContactIds = await validateContactsBelongToUser(
     userId,
-    input.contactIds
+    contactIds
   );
 
   const campaign = await CampaignModel.create({
@@ -94,6 +107,7 @@ export async function createCampaign(
     description: input.description,
     objective: input.objective,
     agentId: input.agentId,
+    contactListId,
     contactIds: uniqueContactIds,
     createdBy: userId,
   });
@@ -146,7 +160,15 @@ export async function updateCampaign(
     await getAgentById(userId, input.agentId);
   }
 
-  if (input.contactIds) {
+  if (input.contactListId) {
+    assertValidObjectId(input.contactListId, "contact list id");
+    const contactList = await getContactListById(userId, input.contactListId);
+    updateData.contactListId = contactList.id;
+    updateData.contactIds = await validateContactsBelongToUser(
+      userId,
+      contactList.contactIds
+    );
+  } else if (input.contactIds) {
     updateData.contactIds = await validateContactsBelongToUser(
       userId,
       input.contactIds
@@ -514,6 +536,7 @@ type PreparedCallLike = {
   _id: unknown;
   campaignId: unknown;
   agentId: unknown;
+  contactListId?: unknown | null;
   contactId: unknown;
   transcript?: string | null;
   status?: string | null;

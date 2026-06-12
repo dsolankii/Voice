@@ -27,6 +27,11 @@ const campaignSchema = new Schema(
       required: true,
       index: true,
     },
+    contactListId: {
+      type: Schema.Types.ObjectId,
+      ref: "ContactList",
+      index: true,
+    },
     contactIds: [
       {
         type: Schema.Types.ObjectId,

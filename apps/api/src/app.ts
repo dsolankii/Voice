@@ -6,6 +6,7 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { agentRoutes } from "./modules/agents/agent.routes.js";
 import { aiRoutes } from "./modules/ai/ai.routes.js";
 import { contactRoutes } from "./modules/contacts/contact.routes.js";
+import { contactListRoutes } from "./modules/contact-lists/contact-list.routes.js";
 import { campaignRoutes } from "./modules/campaigns/campaign.routes.js";
 import { callRoutes } from "./modules/calls/call.routes.js";
 import { errorMiddleware } from "./middleware/error.middleware.js";
@@ -33,6 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/contacts", contactRoutes);
+app.use("/api/contact-lists", contactListRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/calls", callRoutes);
 
