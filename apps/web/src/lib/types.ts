@@ -4,6 +4,15 @@ export type User = {
   email: string;
 };
 
+export type GoogleLiveVoiceName =
+  | "Kore"
+  | "Puck"
+  | "Charon"
+  | "Fenrir"
+  | "Achird"
+  | "Sulafat"
+  | "Despina";
+
 export type Agent = {
   id: string;
   name: string;
@@ -15,6 +24,7 @@ export type Agent = {
   conversationGuidelines?: string;
   language: string;
   voiceStyle: "professional" | "friendly" | "casual" | "empathetic" | "energetic";
+  voiceName: GoogleLiveVoiceName;
   status: "active" | "archived";
   createdBy?: string;
   createdAt?: string;

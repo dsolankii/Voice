@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+export const googleLiveVoiceSchema = z.enum([
+  "Kore",
+  "Puck",
+  "Charon",
+  "Fenrir",
+  "Achird",
+  "Sulafat",
+  "Despina",
+]);
+
 export const createAgentSchema = z.object({
   name: z.string().min(2).max(100),
   persona: z.string().min(10).max(6000),
@@ -15,6 +25,7 @@ export const createAgentSchema = z.object({
   voiceStyle: z
     .enum(["professional", "friendly", "casual", "empathetic", "energetic"])
     .default("professional"),
+  voiceName: googleLiveVoiceSchema.default("Kore"),
 });
 
 export const updateAgentSchema = createAgentSchema.partial().extend({

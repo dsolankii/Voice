@@ -29,6 +29,20 @@ const VOICE_STYLE_COLORS: Record<
   energetic: "default",
 };
 
+const GOOGLE_LIVE_VOICES: Array<{
+  value: Agent["voiceName"];
+  label: string;
+  description: string;
+}> = [
+  { value: "Kore", label: "Kore", description: "Firm, stable" },
+  { value: "Puck", label: "Puck", description: "Upbeat" },
+  { value: "Charon", label: "Charon", description: "Professional" },
+  { value: "Fenrir", label: "Fenrir", description: "Energetic" },
+  { value: "Achird", label: "Achird", description: "Friendly" },
+  { value: "Sulafat", label: "Sulafat", description: "Warm" },
+  { value: "Despina", label: "Despina", description: "Smooth" },
+];
+
 const DEFAULT_CLOSING =
   "Thanks for your time. Have a great day. Goodbye.";
 
@@ -40,8 +54,9 @@ const EMPTY_FORM = {
   openingMessage: "",
   closingMessage: DEFAULT_CLOSING,
   conversationGuidelines: "",
-  language: "en",
+  language: "English",
   voiceStyle: "professional" as Agent["voiceStyle"],
+  voiceName: "Kore" as Agent["voiceName"],
 };
 
 function countText(value: string) {
@@ -143,12 +158,18 @@ export default function AgentsPage() {
                 required
               />
 
-              <Input
-                label="Language"
-                placeholder="en"
-                value={form.language}
-                onChange={(e) => setForm({ ...form, language: e.target.value })}
-              />
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-700">
+                  Language
+                </label>
+                <select
+                  value={form.language}
+                  onChange={(e) => setForm({ ...form, language: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                >
+                  <option value="English">English</option>
+                </select>
+              </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-slate-700">
@@ -170,6 +191,31 @@ export default function AgentsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-700">
+                  Gemini Live voice
+                </label>
+                <select
+                  value={form.voiceName}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      voiceName: e.target.value as Agent["voiceName"],
+                    })
+                  }
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                >
+                  {GOOGLE_LIVE_VOICES.map((voice) => (
+                    <option key={voice.value} value={voice.value}>
+                      {voice.label} — {voice.description}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400">
+                  Used only in Gemini Live realtime calls.
+                </p>
               </div>
 
               <div className="md:col-span-2">
@@ -330,10 +376,15 @@ export default function AgentsPage() {
                     </div>
                   </div>
 
-                  <Badge
-                    label={agent.voiceStyle}
-                    variant={VOICE_STYLE_COLORS[agent.voiceStyle] ?? "default"}
-                  />
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge
+                      label={agent.voiceStyle}
+                      variant={VOICE_STYLE_COLORS[agent.voiceStyle] ?? "default"}
+                    />
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                      {agent.voiceName || "Kore"}
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-500 leading-relaxed mb-3 line-clamp-2">

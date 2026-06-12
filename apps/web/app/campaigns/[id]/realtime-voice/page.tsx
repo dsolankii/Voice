@@ -25,6 +25,7 @@ type Agent = {
   name: string;
   openingMessage: string;
   voiceStyle: string;
+  voiceName?: string;
 };
 
 type SavedCall = {
@@ -648,7 +649,7 @@ export default function RealtimeVoicePage() {
 
       setLiveStatus("Calibrating background noise...");
       await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 1300);
+        window.setTimeout(resolve, 850);
       });
 
       if (websocket.readyState === WebSocket.OPEN) {
@@ -748,7 +749,7 @@ export default function RealtimeVoicePage() {
     const processor = audioContext.createScriptProcessor(1024, 1, 1);
 
     noiseFloorRef.current = 0.012;
-    micCalibrationUntilRef.current = Date.now() + 1200;
+    micCalibrationUntilRef.current = Date.now() + 800;
     speakingWhileAgentFramesRef.current = 0;
     lastLocalBargeInAtRef.current = 0;
 
@@ -1041,6 +1042,9 @@ export default function RealtimeVoicePage() {
               <p className="mt-3 text-sm text-slate-600">{agent?.name}</p>
               <p className="mt-2 text-xs text-slate-500">
                 Voice style: {agent?.voiceStyle}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Gemini Live voice: {agent?.voiceName || "Kore"}
               </p>
             </div>
 

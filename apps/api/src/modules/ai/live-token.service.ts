@@ -3,10 +3,12 @@ import { env } from "../../config/env.js";
 
 type CreateLiveTokenOptions = {
   systemInstruction: string;
+  voiceName?: string;
 };
 
 export async function createGeminiLiveToken({
   systemInstruction,
+  voiceName,
 }: CreateLiveTokenOptions) {
   if (!env.aiApiKey) {
     const error = new Error("AI_API_KEY is required for Gemini Live API");
@@ -34,7 +36,7 @@ export async function createGeminiLiveToken({
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: "Kore",
+                voiceName: voiceName || "Kore",
               },
             },
           },

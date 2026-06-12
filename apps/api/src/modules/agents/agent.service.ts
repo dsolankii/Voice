@@ -13,6 +13,7 @@ function toSafeAgent(agent: {
   conversationGuidelines?: string | null;
   language: string;
   voiceStyle: string;
+  voiceName?: string | null;
   status: string;
   createdBy: unknown;
   createdAt?: unknown;
@@ -31,6 +32,7 @@ function toSafeAgent(agent: {
     conversationGuidelines: agent.conversationGuidelines || "",
     language: agent.language,
     voiceStyle: agent.voiceStyle,
+    voiceName: agent.voiceName || "Kore",
     status: agent.status,
     createdBy: String(agent.createdBy),
     createdAt: agent.createdAt,

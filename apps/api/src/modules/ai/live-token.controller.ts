@@ -79,6 +79,7 @@ Rules:
 
   const result = await createGeminiLiveToken({
     systemInstruction,
+    voiceName: agent.voiceName || "Kore",
   });
 
   return res.json(result);

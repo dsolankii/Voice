@@ -63,6 +63,20 @@ const agentSchema = new Schema(
       default: "professional",
       enum: ["professional", "friendly", "casual", "empathetic", "energetic"],
     },
+    voiceName: {
+      type: String,
+      required: true,
+      default: "Kore",
+      enum: [
+        "Kore",
+        "Puck",
+        "Charon",
+        "Fenrir",
+        "Achird",
+        "Sulafat",
+        "Despina",
+      ],
+    },
     status: {
       type: String,
       required: true,
