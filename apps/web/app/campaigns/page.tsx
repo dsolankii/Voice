@@ -62,7 +62,13 @@ export default function CampaignsPage() {
     }
     setSubmitting(true);
     try {
-      await createCampaign(form);
+      await createCampaign({
+        name: form.name,
+        description: form.description,
+        objective: form.objective,
+        agentId: form.agent,
+        contactIds: form.contacts,
+      });
       setForm({
         name: "",
         description: "",

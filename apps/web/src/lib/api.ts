@@ -153,9 +153,9 @@ export async function getCampaigns(): Promise<{ campaigns: Campaign[] }> {
 export async function createCampaign(data: {
   name: string;
   description?: string;
-  objective?: string;
-  agent: string;
-  contacts: string[];
+  objective: string;
+  agentId: string;
+  contactIds: string[];
 }): Promise<{ campaign: Campaign }> {
   return apiRequest("/api/campaigns", {
     method: "POST",
@@ -190,6 +190,22 @@ export async function downloadCampaignCsv(campaignId: string): Promise<void> {
   a.download = `campaign-${campaignId}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+
+export async function prepareCampaignCalls(
+  campaignId: string
+): Promise<{
+  campaignId: string;
+  contactCount: number;
+  existingCallContactCount: number;
+  createdCount: number;
+  skippedCount: number;
+  calls: Call[];
+}> {
+  return apiRequest(`/api/campaigns/${campaignId}/prepare-calls`, {
+    method: "POST",
+  });
 }
 
 // ─── Calls ───────────────────────────────────────────────────────────────────

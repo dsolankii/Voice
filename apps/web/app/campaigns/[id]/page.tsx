@@ -17,6 +17,7 @@ import {
   getCampaign,
   getCampaignSummary,
   getContacts,
+  prepareCampaignCalls,
 } from "@/lib/api";
 import type { Call, Campaign, CampaignSummary, Contact } from "@/lib/types";
 
@@ -52,6 +53,7 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [preparingCalls, setPreparingCalls] = useState(false);
   const [showCallForm, setShowCallForm] = useState(false);
   const [callForm, setCallForm] = useState({
     contactId: "",
@@ -98,6 +100,21 @@ export default function CampaignDetailPage() {
       alert(err instanceof Error ? err.message : "Export failed");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handlePrepareCalls() {
+    setPreparingCalls(true);
+    try {
+      const result = await prepareCampaignCalls(id);
+      await load();
+      alert(
+        `Prepared calls. Created: ${result.createdCount}, skipped: ${result.skippedCount}`
+      );
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to prepare calls");
+    } finally {
+      setPreparingCalls(false);
     }
   }
 
@@ -176,6 +193,14 @@ export default function CampaignDetailPage() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {statusBadge(campaign.status)}
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={preparingCalls}
+              onClick={handlePrepareCalls}
+            >
+              Prepare Calls
+            </Button>
               <Link
                 href={`/campaigns/${campaign.id}/voice-simulator`}
                 className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
