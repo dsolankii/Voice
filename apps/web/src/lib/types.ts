@@ -33,12 +33,25 @@ export type Contact = {
   updatedAt?: string;
 };
 
+export type ContactList = {
+  id: string;
+  name: string;
+  description?: string | null;
+  uploadBatchId: string;
+  contactIds: string[];
+  contactCount: number;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type Campaign = {
   id: string;
   name: string;
   description?: string | null;
   objective: string;
   agentId: string;
+  contactListId?: string | null;
   contactIds: string[];
   contactCount: number;
   status: "draft" | "running" | "completed" | "archived";
@@ -125,3 +138,9 @@ export type UploadContactsResult = {
 };
 
 export type UploadResult = UploadContactsResult;
+
+
+export type UploadContactListResult = {
+  contactList: ContactList;
+  upload: UploadContactsResult;
+};

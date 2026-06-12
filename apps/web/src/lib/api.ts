@@ -5,6 +5,8 @@ import type {
   Campaign,
   CampaignSummary,
   Contact,
+  ContactList,
+  UploadContactListResult,
   UploadResult,
   User,
 } from "./types";
@@ -144,6 +146,51 @@ export async function deleteContact(id: string): Promise<void> {
   return apiRequest(`/api/contacts/${id}`, { method: "DELETE" });
 }
 
+
+export async function getContactLists(): Promise<{
+  contactLists: ContactList[];
+}> {
+  return apiRequest("/api/contact-lists");
+}
+
+export async function uploadContactListCsv(data: {
+  name: string;
+  description?: string;
+  file: File;
+}): Promise<UploadContactListResult> {
+  const token = getToken();
+  const form = new FormData();
+
+  form.append("name", data.name);
+  if (data.description) {
+    form.append("description", data.description);
+  }
+  form.append("file", data.file);
+
+  const res = await fetch(`${BASE_URL}/api/contact-lists/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+
+  if (!res.ok) {
+    let message = `Upload failed with status ${res.status}`;
+    try {
+      const body = await res.json();
+      message = body.message ?? body.error ?? message;
+    } catch {
+      // ignore
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  return res.json();
+}
+
+export async function deleteContactList(id: string): Promise<void> {
+  return apiRequest(`/api/contact-lists/${id}`, { method: "DELETE" });
+}
+
 // ─── Campaigns ───────────────────────────────────────────────────────────────
 
 export async function getCampaigns(): Promise<{ campaigns: Campaign[] }> {
@@ -155,7 +202,8 @@ export async function createCampaign(data: {
   description?: string;
   objective: string;
   agentId: string;
-  contactIds: string[];
+  contactListId?: string;
+  contactIds?: string[];
 }): Promise<{ campaign: Campaign }> {
   return apiRequest("/api/campaigns", {
     method: "POST",
@@ -175,6 +223,7 @@ export async function updateCampaign(
     description: string;
     objective: string;
     agentId: string;
+    contactListId: string;
     contactIds: string[];
     status: Campaign["status"];
   }>

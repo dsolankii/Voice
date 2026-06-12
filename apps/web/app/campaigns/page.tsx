@@ -13,9 +13,14 @@ import {
   getAgents,
   getCampaigns,
   getCampaignSummary,
-  getContacts,
+  getContactLists,
 } from "@/lib/api";
-import type { Agent, Campaign, CampaignSummary, Contact } from "@/lib/types";
+import type {
+  Agent,
+  Campaign,
+  CampaignSummary,
+  ContactList,
+} from "@/lib/types";
 
 function statusVariant(
   status: Campaign["status"]
@@ -54,7 +59,7 @@ export default function CampaignsPage() {
     {}
   );
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -62,7 +67,7 @@ export default function CampaignsPage() {
     description: "",
     objective: "",
     agent: "",
-    contacts: [] as string[],
+    contactListId: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -70,15 +75,19 @@ export default function CampaignsPage() {
   async function load() {
     setLoading(true);
 
-    const [campaignResult, agentsResult, contactsResult] =
-      await Promise.allSettled([getCampaigns(), getAgents(), getContacts()]);
+    const [campaignResult, agentsResult, contactListsResult] =
+      await Promise.allSettled([
+        getCampaigns(),
+        getAgents(),
+        getContactLists(),
+      ]);
 
     if (agentsResult.status === "fulfilled") {
       setAgents(agentsResult.value.agents);
     }
 
-    if (contactsResult.status === "fulfilled") {
-      setContacts(contactsResult.value.contacts);
+    if (contactListsResult.status === "fulfilled") {
+      setContactLists(contactListsResult.value.contactLists);
     }
 
     if (campaignResult.status === "fulfilled") {
@@ -116,8 +125,8 @@ export default function CampaignsPage() {
       return;
     }
 
-    if (form.contacts.length === 0) {
-      setError("Please select at least one contact");
+    if (!form.contactListId) {
+      setError("Please select a contact list");
       return;
     }
 
@@ -129,7 +138,7 @@ export default function CampaignsPage() {
         description: form.description,
         objective: form.objective,
         agentId: form.agent,
-        contactIds: form.contacts,
+        contactListId: form.contactListId,
       });
 
       setForm({
@@ -137,7 +146,7 @@ export default function CampaignsPage() {
         description: "",
         objective: "",
         agent: "",
-        contacts: [],
+        contactListId: "",
       });
       setShowForm(false);
       await load();
@@ -150,13 +159,17 @@ export default function CampaignsPage() {
     }
   }
 
-  function toggleContact(id: string) {
-    setForm((prev) => ({
-      ...prev,
-      contacts: prev.contacts.includes(id)
-        ? prev.contacts.filter((contactId) => contactId !== id)
-        : [...prev.contacts, id],
-    }));
+
+  function getAgentName(agentId?: string | null) {
+    if (!agentId) return "Unknown agent";
+    const agent = agents.find((item) => item.id === agentId);
+    return agent?.name ?? "Unknown agent";
+  }
+
+  function getContactListName(contactListId?: string | null) {
+    if (!contactListId) return "Manual contacts";
+    const contactList = contactLists.find((list) => list.id === contactListId);
+    return contactList?.name ?? "Contact list";
   }
 
   const totalCampaigns = campaigns.length;
@@ -285,41 +298,31 @@ export default function CampaignsPage() {
                 }
               />
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Select contacts ({form.contacts.length} selected)
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-700">
+                  Contact List
                 </label>
+                <select
+                  value={form.contactListId}
+                  onChange={(e) =>
+                    setForm({ ...form, contactListId: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  required
+                >
+                  <option value="">Select a contact list...</option>
+                  {contactLists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name} ({list.contactCount} contacts)
+                    </option>
+                  ))}
+                </select>
 
-                {contacts.length === 0 ? (
-                  <p className="text-xs italic text-slate-400">
-                    No contacts yet. Upload a CSV first.
+                {contactLists.length === 0 ? (
+                  <p className="mt-1 text-xs text-red-500">
+                    No contact lists yet. Go to Contact Lists and upload a CSV first.
                   </p>
-                ) : (
-                  <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-50">
-                    {contacts.map((contact) => (
-                      <label
-                        key={contact.id}
-                        className="flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={form.contacts.includes(contact.id)}
-                          onChange={() => toggleContact(contact.id)}
-                          className="accent-violet-600"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-800">
-                            {contact.name}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {contact.phone}
-                            {contact.company ? ` · ${contact.company}` : ""}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                ) : null}
               </div>
 
               {error ? (
@@ -401,6 +404,12 @@ export default function CampaignsPage() {
 
                       <p className="mt-2 text-xs text-slate-400">
                         Created {formatDate(campaign.createdAt)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Agent: {getAgentName(campaign.agentId)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Contact list: {getContactListName(campaign.contactListId)}
                       </p>
                     </div>
 
