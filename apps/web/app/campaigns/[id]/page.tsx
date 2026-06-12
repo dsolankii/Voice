@@ -148,6 +148,11 @@ export default function CampaignDetailPage() {
     return c?.name ?? contactId;
   }
 
+  function getContactId(contactId: string | Contact): string {
+    if (typeof contactId === "object") return contactId.id;
+    return contactId;
+  }
+
   if (loading) {
     return (
       <AppShell>
@@ -389,6 +394,14 @@ export default function CampaignDetailPage() {
                         {call.outcome?.nextAction ?? "—"}
                       </td>
                       <td className="py-3 text-right">
+                        {call.status === "pending" ? (
+                          <Link
+                            href={`/campaigns/${id}/voice-simulator?callId=${call.id}&contactId=${getContactId(call.contactId)}`}
+                            className="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                          >
+                            🎙 Start Simulation
+                          </Link>
+                        ) : null}
                         <Button
                           size="sm"
                           variant={

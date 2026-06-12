@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 type Contact = {
   id: string;
@@ -147,7 +147,10 @@ function getSpeechRecognition() {
 export default function VoiceSimulatorPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const campaignId = params.id;
+  const existingCallId = searchParams.get("callId");
+  const queryContactId = searchParams.get("contactId");
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -205,7 +208,11 @@ export default function VoiceSimulatorPage() {
         setContacts(campaignContacts);
 
         if (campaignContacts.length > 0) {
-          setSelectedContactId(campaignContacts[0].id);
+          const matchingContact = queryContactId
+            ? campaignContacts.find((contact) => contact.id === queryContactId)
+            : null;
+
+          setSelectedContactId(matchingContact?.id || campaignContacts[0].id);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load simulator");
@@ -215,7 +222,7 @@ export default function VoiceSimulatorPage() {
     }
 
     loadData();
-  }, [campaignId, router]);
+  }, [campaignId, queryContactId, router]);
 
   function speak(text: string) {
     if (typeof window === "undefined" || !window.speechSynthesis) {
@@ -351,14 +358,21 @@ export default function VoiceSimulatorPage() {
     setError("");
 
     try {
-      const response = await apiRequest<{ call: SavedCall }>("/api/calls", {
-        method: "POST",
-        body: JSON.stringify({
-          campaignId,
-          contactId: selectedContactId,
-          transcript: fullTranscript,
-        }),
-      });
+      const response = existingCallId
+        ? await apiRequest<{ call: SavedCall }>(`/api/calls/${existingCallId}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              transcript: fullTranscript,
+            }),
+          })
+        : await apiRequest<{ call: SavedCall }>("/api/calls", {
+            method: "POST",
+            body: JSON.stringify({
+              campaignId,
+              contactId: selectedContactId,
+              transcript: fullTranscript,
+            }),
+          });
 
       setSavedCall(response.call);
     } catch (err) {
@@ -584,13 +598,19 @@ export default function VoiceSimulatorPage() {
                 Save this transcript as a call record, then run Gemini outcome extraction.
               </p>
 
+              {existingCallId ? (
+                <p className="mt-2 rounded-lg bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700">
+                  Using prepared call: {existingCallId}
+                </p>
+              ) : null}
+
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   onClick={saveCall}
                   disabled={saving}
                   className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "Save call"}
+                  {saving ? "Saving..." : existingCallId ? "Save to prepared call" : "Save call"}
                 </button>
 
                 <button
