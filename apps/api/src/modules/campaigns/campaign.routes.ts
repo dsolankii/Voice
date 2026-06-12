@@ -8,6 +8,7 @@ import {
   getCampaignController,
   getCampaignSummaryController,
   listCampaignsController,
+  prepareCampaignCallsController,
   updateCampaignController,
 } from "./campaign.controller.js";
 
@@ -17,6 +18,7 @@ campaignRoutes.use(requireAuth);
 
 campaignRoutes.post("/", asyncHandler(createCampaignController));
 campaignRoutes.get("/", asyncHandler(listCampaignsController));
+campaignRoutes.post("/:id/prepare-calls", asyncHandler(prepareCampaignCallsController));
 campaignRoutes.get("/:id/export", asyncHandler(exportCampaignController));
 campaignRoutes.get("/:id/summary", asyncHandler(getCampaignSummaryController));
 campaignRoutes.get("/:id", asyncHandler(getCampaignController));

@@ -509,3 +509,77 @@ export async function getCampaignExportCsv(userId: string, campaignId: string) {
 
   return rows.join("\n");
 }
+
+type PreparedCallLike = {
+  _id: unknown;
+  campaignId: unknown;
+  agentId: unknown;
+  contactId: unknown;
+  transcript?: string | null;
+  status?: string | null;
+  outcome?: unknown;
+  outcomeExtractedAt?: unknown;
+  errorMessage?: string | null;
+  createdBy: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
+
+function toPreparedCall(call: PreparedCallLike) {
+  return {
+    id: String(call._id),
+    campaignId: String(call.campaignId),
+    agentId: String(call.agentId),
+    contactId: String(call.contactId),
+    transcript: call.transcript || null,
+    status: call.status || "pending",
+    outcome: call.outcome || null,
+    outcomeExtractedAt: call.outcomeExtractedAt || null,
+    errorMessage: call.errorMessage || null,
+    createdBy: String(call.createdBy),
+    createdAt: call.createdAt,
+    updatedAt: call.updatedAt,
+  };
+}
+
+export async function prepareCampaignCalls(userId: string, campaignId: string) {
+  const campaign = await getCampaignById(userId, campaignId);
+
+  const existingCalls = await CallModel.find({
+    campaignId,
+    createdBy: userId,
+    contactId: {
+      $in: campaign.contactIds,
+    },
+  })
+    .select("contactId")
+    .lean<{ contactId: unknown }[]>();
+
+  const existingContactIds = new Set(
+    existingCalls.map((call) => String(call.contactId))
+  );
+
+  const missingContactIds = campaign.contactIds.filter(
+    (contactId) => !existingContactIds.has(contactId)
+  );
+
+  const callsToCreate = missingContactIds.map((contactId) => ({
+    campaignId,
+    agentId: campaign.agentId,
+    contactId,
+    status: "pending",
+    createdBy: userId,
+  }));
+
+  const createdCalls =
+    callsToCreate.length > 0 ? await CallModel.insertMany(callsToCreate) : [];
+
+  return {
+    campaignId,
+    contactCount: campaign.contactCount,
+    existingCallContactCount: existingContactIds.size,
+    createdCount: createdCalls.length,
+    skippedCount: existingContactIds.size,
+    calls: createdCalls.map((call) => toPreparedCall(call.toObject())),
+  };
+}

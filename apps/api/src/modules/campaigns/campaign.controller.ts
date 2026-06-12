@@ -7,6 +7,7 @@ import {
   getCampaignExportCsv,
   getCampaignSummary,
   listCampaigns,
+  prepareCampaignCalls,
   updateCampaign,
 } from "./campaign.service.js";
 import {
@@ -74,6 +75,17 @@ export async function getCampaignSummaryController(
   return res.json({
     summary,
   });
+}
+
+export async function prepareCampaignCallsController(
+  req: AuthRequest,
+  res: Response
+) {
+  const userId = getRequiredUserId(req);
+  const campaignId = getRequiredParam(req.params.id, "campaign id");
+  const result = await prepareCampaignCalls(userId, campaignId);
+
+  return res.status(201).json(result);
 }
 
 export async function exportCampaignController(
