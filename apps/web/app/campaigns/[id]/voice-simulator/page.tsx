@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
@@ -56,11 +56,13 @@ type SavedCall = {
 };
 
 type SpeechRecognitionEventLike = Event & {
+  resultIndex?: number;
   results: {
     [index: number]: {
       [index: number]: {
         transcript: string;
       };
+      isFinal?: boolean;
     };
     length: number;
   };
@@ -166,6 +168,11 @@ export default function VoiceSimulatorPage() {
   const [extracting, setExtracting] = useState(false);
   const [generatingReply, setGeneratingReply] = useState(false);
   const [error, setError] = useState("");
+  const [isAutoMode, setIsAutoMode] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [interimText, setInterimText] = useState("");
+  const [bargeInStatus, setBargeInStatus] = useState("Idle");
+  const [micLevel, setMicLevel] = useState(0);
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.id === selectedContactId) || null,
@@ -173,6 +180,53 @@ export default function VoiceSimulatorPage() {
   );
 
   const fullTranscript = transcriptLines.join("\n");
+
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const transcriptLinesRef = useRef<string[]>([]);
+  const autoModeRef = useRef(false);
+  const isSpeakingRef = useRef(false);
+  const generatingReplyRef = useRef(false);
+  const customerBufferRef = useRef("");
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const bargeInConfirmedRef = useRef(false);
+  const possibleSpeechStartedAtRef = useRef<number | null>(null);
+  const lastBargeInAtRef = useRef(0);
+  const noiseFloorRef = useRef(0.015);
+
+  function appendTranscriptLine(line: string) {
+    setTranscriptLines((prev) => {
+      const next = [...prev, line];
+      transcriptLinesRef.current = next;
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    transcriptLinesRef.current = transcriptLines;
+  }, [transcriptLines]);
+
+  useEffect(() => {
+    autoModeRef.current = isAutoMode;
+  }, [isAutoMode]);
+
+  useEffect(() => {
+    return () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+
+      recognitionRef.current?.stop();
+      stopBargeInMonitor();
+
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -224,7 +278,16 @@ export default function VoiceSimulatorPage() {
     loadData();
   }, [campaignId, queryContactId, router]);
 
-  function speak(text: string) {
+  function stopSpeaking() {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
+    isSpeakingRef.current = false;
+    setIsSpeaking(false);
+  }
+
+  function speak(text: string, afterSpeak?: () => void) {
     if (typeof window === "undefined" || !window.speechSynthesis) {
       setError("Text-to-speech is not supported in this browser.");
       return;
@@ -237,17 +300,219 @@ export default function VoiceSimulatorPage() {
     utterance.pitch = 1;
     utterance.volume = 1;
 
+    utterance.onstart = () => {
+      isSpeakingRef.current = true;
+      setIsSpeaking(true);
+
+      // Best-effort barge-in: keep listening while AI speaks.
+      if (autoModeRef.current) {
+        setTimeout(() => {
+          startAutoListening();
+        }, 250);
+      }
+    };
+
+    utterance.onend = () => {
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
+
+      if (afterSpeak) {
+        afterSpeak();
+      }
+
+      if (autoModeRef.current) {
+        setTimeout(() => {
+          startAutoListening();
+        }, 300);
+      }
+    };
+
+    utterance.onerror = () => {
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
+
+      if (afterSpeak) {
+        afterSpeak();
+      }
+    };
+
     window.speechSynthesis.speak(utterance);
   }
 
-  function speakOpeningMessage() {
+  function speakOpeningMessage(afterSpeak?: () => void) {
     if (!agent) {
       return;
     }
 
     const message = agent.openingMessage || "Hello, I am calling about your interest.";
-    setTranscriptLines((prev) => [...prev, `Agent: ${message}`]);
-    speak(message);
+    appendTranscriptLine(`Agent: ${message}`);
+    speak(message, afterSpeak);
+  }
+
+  function getAudioContextConstructor() {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    return (
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext ||
+      null
+    );
+  }
+
+  function calculateRms(data: Uint8Array) {
+    let sum = 0;
+
+    for (const value of data) {
+      const normalized = (value - 128) / 128;
+      sum += normalized * normalized;
+    }
+
+    return Math.sqrt(sum / data.length);
+  }
+
+  function confirmBargeIn() {
+    const now = Date.now();
+
+    if (now - lastBargeInAtRef.current < 1200) {
+      return;
+    }
+
+    lastBargeInAtRef.current = now;
+    bargeInConfirmedRef.current = true;
+    possibleSpeechStartedAtRef.current = null;
+
+    setBargeInStatus("Customer interrupted. Listening...");
+    stopSpeaking();
+
+    if (autoModeRef.current && !recognitionRef.current) {
+      startAutoListening();
+    }
+  }
+
+  function runBargeInLoop() {
+    const analyser = analyserRef.current;
+
+    if (!analyser) {
+      return;
+    }
+
+    const data = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(data);
+
+    const rms = calculateRms(data);
+    setMicLevel(rms);
+
+    const now = Date.now();
+    const adaptiveThreshold = Math.max(noiseFloorRef.current * 3.5, 0.04);
+
+    if (!isSpeakingRef.current) {
+      // Slowly learn the room noise only when AI is not speaking.
+      if (rms < 0.05) {
+        noiseFloorRef.current = noiseFloorRef.current * 0.95 + rms * 0.05;
+      }
+
+      possibleSpeechStartedAtRef.current = null;
+
+      if (autoModeRef.current) {
+        setBargeInStatus("Listening to customer...");
+      }
+    } else if (
+      autoModeRef.current &&
+      !bargeInConfirmedRef.current &&
+      rms > adaptiveThreshold
+    ) {
+      if (!possibleSpeechStartedAtRef.current) {
+        possibleSpeechStartedAtRef.current = now;
+        setBargeInStatus("Possible interruption...");
+      }
+
+      const speechDuration = now - possibleSpeechStartedAtRef.current;
+
+      if (speechDuration >= 550) {
+        confirmBargeIn();
+      }
+    } else if (isSpeakingRef.current && !bargeInConfirmedRef.current) {
+      possibleSpeechStartedAtRef.current = null;
+
+      if (autoModeRef.current) {
+        setBargeInStatus("AI speaking. Monitoring for real interruption...");
+      }
+    }
+
+    animationFrameRef.current = requestAnimationFrame(runBargeInLoop);
+  }
+
+  async function startBargeInMonitor() {
+    if (
+      typeof window === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia ||
+      mediaStreamRef.current
+    ) {
+      return;
+    }
+
+    const AudioContextConstructor = getAudioContextConstructor();
+
+    if (!AudioContextConstructor) {
+      return;
+    }
+
+    try {
+      setBargeInStatus("Starting microphone monitor...");
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      const audioContext = new AudioContextConstructor();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.75;
+
+      source.connect(analyser);
+
+      mediaStreamRef.current = stream;
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      setBargeInStatus("Calibrating background noise...");
+
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      animationFrameRef.current = requestAnimationFrame(runBargeInLoop);
+    } catch {
+      setBargeInStatus("Mic monitor unavailable");
+      setError("Could not start microphone monitor for interruption detection.");
+    }
+  }
+
+  function stopBargeInMonitor() {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    analyserRef.current = null;
+    possibleSpeechStartedAtRef.current = null;
+    bargeInConfirmedRef.current = false;
+    setMicLevel(0);
+    setBargeInStatus("Idle");
   }
 
   function startListening() {
@@ -268,7 +533,7 @@ export default function VoiceSimulatorPage() {
       const result = event.results[0]?.[0]?.transcript;
 
       if (result) {
-        setTranscriptLines((prev) => [...prev, `Customer: ${result}`]);
+        appendTranscriptLine(`Customer: ${result}`);
       }
     };
 
@@ -281,6 +546,7 @@ export default function VoiceSimulatorPage() {
       setIsListening(false);
     };
 
+    recognitionRef.current = recognitionInstance;
     setRecognition(recognitionInstance);
     setError("");
     setIsListening(true);
@@ -288,8 +554,179 @@ export default function VoiceSimulatorPage() {
   }
 
   function stopListening() {
+    recognitionRef.current?.stop();
     recognition?.stop();
+    recognitionRef.current = null;
     setIsListening(false);
+  }
+
+  async function processCustomerBuffer() {
+    const customerText = customerBufferRef.current.trim();
+
+    if (!customerText || generatingReplyRef.current) {
+      return;
+    }
+
+    customerBufferRef.current = "";
+    bargeInConfirmedRef.current = false;
+    setInterimText("");
+
+    appendTranscriptLine(`Customer: ${customerText}`);
+
+    await generateAgentReply(true);
+  }
+
+  function handleAutoSpeechResult(event: SpeechRecognitionEventLike) {
+    let finalText = "";
+    let interim = "";
+
+    const startIndex = event.resultIndex ?? 0;
+
+    for (let index = startIndex; index < event.results.length; index += 1) {
+      const resultItem = event.results[index];
+      const transcript = resultItem?.[0]?.transcript ?? "";
+
+      if (!transcript.trim()) {
+        continue;
+      }
+
+      if (resultItem.isFinal) {
+        finalText += ` ${transcript}`;
+      } else {
+        interim += ` ${transcript}`;
+      }
+    }
+
+    const heardSomething = finalText.trim() || interim.trim();
+
+    // While AI is speaking, browser STT often hears speaker echo.
+    // Trust interruption text only after Web Audio confirms real human speech.
+    if (heardSomething && isSpeakingRef.current && !bargeInConfirmedRef.current) {
+      setBargeInStatus("Ignoring possible AI echo/noise...");
+      return;
+    }
+
+    if (heardSomething && isSpeakingRef.current && bargeInConfirmedRef.current) {
+      stopSpeaking();
+    }
+
+    if (interim.trim()) {
+      setInterimText(interim.trim());
+    }
+
+    if (finalText.trim()) {
+      customerBufferRef.current = `${customerBufferRef.current} ${finalText}`.trim();
+
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+
+      silenceTimerRef.current = setTimeout(() => {
+        void processCustomerBuffer();
+      }, 900);
+    }
+  }
+
+  function startAutoListening() {
+    if (!autoModeRef.current || recognitionRef.current) {
+      return;
+    }
+
+    const recognitionInstance = getSpeechRecognition();
+
+    if (!recognitionInstance) {
+      setError(
+        "Speech recognition is not supported in this browser. Use Chrome or Edge."
+      );
+      setIsAutoMode(false);
+      autoModeRef.current = false;
+      return;
+    }
+
+    recognitionInstance.continuous = true;
+    recognitionInstance.interimResults = true;
+    recognitionInstance.lang = "en-IN";
+
+    recognitionInstance.onresult = handleAutoSpeechResult;
+
+    recognitionInstance.onerror = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+
+      if (autoModeRef.current) {
+        setTimeout(() => {
+          startAutoListening();
+        }, 700);
+      }
+    };
+
+    recognitionInstance.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+
+      if (autoModeRef.current && !generatingReplyRef.current) {
+        setTimeout(() => {
+          startAutoListening();
+        }, 350);
+      }
+    };
+
+    recognitionRef.current = recognitionInstance;
+    setRecognition(recognitionInstance);
+    setError("");
+    setIsListening(true);
+
+    try {
+      recognitionInstance.start();
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+    }
+  }
+
+  function stopAutoListening() {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setIsListening(false);
+  }
+
+  async function startAutoCall() {
+    if (!agent) {
+      setError("Agent is not loaded yet.");
+      return;
+    }
+
+    setError("");
+    setSavedCall(null);
+    setIsAutoMode(true);
+    autoModeRef.current = true;
+    bargeInConfirmedRef.current = false;
+
+    await startBargeInMonitor();
+
+    if (transcriptLinesRef.current.length === 0) {
+      speakOpeningMessage(() => {
+        startAutoListening();
+      });
+    } else {
+      startAutoListening();
+    }
+  }
+
+  function stopAutoCall() {
+    setIsAutoMode(false);
+    autoModeRef.current = false;
+    customerBufferRef.current = "";
+    setInterimText("");
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    stopAutoListening();
+    stopSpeaking();
+    stopBargeInMonitor();
   }
 
   function addManualCustomerLine() {
@@ -299,21 +736,28 @@ export default function VoiceSimulatorPage() {
       return;
     }
 
-    setTranscriptLines((prev) => [...prev, `Customer: ${text}`]);
+    appendTranscriptLine(`Customer: ${text}`);
     setManualText("");
   }
 
-  async function addAgentReply() {
+  async function generateAgentReply(autoContinue = false) {
     if (!agent) {
       setError("Agent is not loaded yet.");
       return;
     }
 
-    if (fullTranscript.trim().length < 10) {
+    const currentTranscript = transcriptLinesRef.current.join("\n");
+
+    if (currentTranscript.trim().length < 10) {
       setError("Add at least one transcript line before generating an AI reply.");
       return;
     }
 
+    if (generatingReplyRef.current) {
+      return;
+    }
+
+    generatingReplyRef.current = true;
     setGeneratingReply(true);
     setError("");
 
@@ -322,23 +766,34 @@ export default function VoiceSimulatorPage() {
         method: "POST",
         body: JSON.stringify({
           agentId: agent.id,
-          transcript: fullTranscript,
+          transcript: currentTranscript,
           contactName: selectedContact?.name,
           campaignObjective: campaign?.objective,
         }),
       });
 
-      setTranscriptLines((prev) => [...prev, `Agent: ${response.reply}`]);
-      speak(response.reply);
+      appendTranscriptLine(`Agent: ${response.reply}`);
+      speak(response.reply, () => {
+        if (autoContinue && autoModeRef.current) {
+          startAutoListening();
+        }
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate AI reply");
     } finally {
+      generatingReplyRef.current = false;
       setGeneratingReply(false);
     }
   }
 
+  async function addAgentReply() {
+    await generateAgentReply(false);
+  }
+
   function clearTranscript() {
+    stopAutoCall();
     setTranscriptLines([]);
+    transcriptLinesRef.current = [];
     setSavedCall(null);
     setError("");
   }
@@ -475,7 +930,7 @@ export default function VoiceSimulatorPage() {
               </div>
 
               <button
-                onClick={speakOpeningMessage}
+                onClick={() => speakOpeningMessage()}
                 className="mt-4 w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"
               >
                 Speak opening message
@@ -516,11 +971,62 @@ export default function VoiceSimulatorPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-slate-950">Live Transcript</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Use microphone or type customer replies manually.
+                    Use manual mode, or start Auto Call for hands-free conversation.
                   </p>
+
+                  {isAutoMode ? (
+                    <p className="mt-2 text-xs font-medium text-violet-700">
+                      Auto mode:{" "}
+                      {generatingReply
+                        ? "AI is thinking..."
+                        : isSpeaking
+                          ? "AI is speaking. Customer can interrupt."
+                          : isListening
+                            ? "Listening to customer..."
+                            : "Ready"}
+                    </p>
+                  ) : null}
+
+                  {isAutoMode ? (
+                    <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-medium text-slate-600">
+                        Barge-in detector: {bargeInStatus}
+                      </p>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-violet-500 transition-all"
+                          style={{
+                            width: `${Math.min(100, Math.round(micLevel * 900))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {interimText ? (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Hearing: {interimText}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  {!isAutoMode ? (
+                    <button
+                      onClick={startAutoCall}
+                      className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+                    >
+                      Start Auto Call
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopAutoCall}
+                      className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                    >
+                      Stop Auto Call
+                    </button>
+                  )}
+
                   {!isListening ? (
                     <button
                       onClick={startListening}
