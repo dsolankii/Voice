@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
@@ -175,6 +176,13 @@ export default function CampaignDetailPage() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {statusBadge(campaign.status)}
+              <Link
+                href={`/campaigns/${campaign.id}/voice-simulator`}
+                className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+              >
+                🎙 Voice Simulator
+              </Link>
+
             <Button
               size="sm"
               variant="secondary"
