@@ -270,10 +270,10 @@ export default function CampaignDetailPage() {
             ) : null}
               {canRunSimulations ? (
                 <Link
-                  href={`/campaigns/${campaign.id}/voice-simulator`}
+                  href={`/campaigns/${campaign.id}/realtime-voice`}
                   className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
                 >
-                  🎙 Voice Simulator
+                  🎙 Realtime Voice
                 </Link>
               ) : null}
 
@@ -460,10 +460,10 @@ export default function CampaignDetailPage() {
                       <td className="py-3 text-right">
                         {canRunSimulations && call.status === "pending" ? (
                           <Link
-                            href={`/campaigns/${id}/voice-simulator?callId=${call.id}&contactId=${getContactId(call.contactId)}`}
+                            href={`/campaigns/${id}/realtime-voice?callId=${call.id}&contactId=${getContactId(call.contactId)}`}
                             className="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
                           >
-                            🎙 Start Simulation
+                            🎙 Start Realtime Call
                           </Link>
                         ) : null}
                         {canExtractOutcomes && call.status !== "pending" ? (
