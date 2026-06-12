@@ -22,7 +22,12 @@ export default function LoginPage() {
     try {
       const res = await login(email, password);
       setToken(res.token);
-      router.push("/dashboard");
+      const nextPath =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("next") || "/dashboard"
+          : "/dashboard";
+
+      router.push(nextPath);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
