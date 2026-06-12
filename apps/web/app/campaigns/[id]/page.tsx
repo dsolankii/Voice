@@ -18,6 +18,7 @@ import {
   getCampaignSummary,
   getContacts,
   prepareCampaignCalls,
+  updateCampaign,
 } from "@/lib/api";
 import type { Call, Campaign, CampaignSummary, Contact } from "@/lib/types";
 
@@ -54,6 +55,7 @@ export default function CampaignDetailPage() {
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [preparingCalls, setPreparingCalls] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showCallForm, setShowCallForm] = useState(false);
   const [callForm, setCallForm] = useState({
     contactId: "",
@@ -115,6 +117,18 @@ export default function CampaignDetailPage() {
       alert(err instanceof Error ? err.message : "Failed to prepare calls");
     } finally {
       setPreparingCalls(false);
+    }
+  }
+
+  async function handleUpdateCampaignStatus(status: Campaign["status"]) {
+    setUpdatingStatus(true);
+    try {
+      await updateCampaign(id, { status });
+      await load();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to update campaign status");
+    } finally {
+      setUpdatingStatus(false);
     }
   }
 
@@ -198,6 +212,47 @@ export default function CampaignDetailPage() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {statusBadge(campaign.status)}
+            {campaign.status === "draft" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={updatingStatus}
+                onClick={() => handleUpdateCampaignStatus("running")}
+              >
+                Start Campaign
+              </Button>
+            ) : null}
+
+            {campaign.status === "running" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={updatingStatus}
+                onClick={() => handleUpdateCampaignStatus("completed")}
+              >
+                Mark Completed
+              </Button>
+            ) : null}
+
+            {campaign.status !== "archived" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={updatingStatus}
+                onClick={() => handleUpdateCampaignStatus("archived")}
+              >
+                Archive
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={updatingStatus}
+                onClick={() => handleUpdateCampaignStatus("draft")}
+              >
+                Restore Draft
+              </Button>
+            )}
             <Button
               size="sm"
               variant="secondary"

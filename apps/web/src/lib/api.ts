@@ -167,6 +167,24 @@ export async function getCampaign(id: string): Promise<{ campaign: Campaign }> {
   return apiRequest(`/api/campaigns/${id}`);
 }
 
+
+export async function updateCampaign(
+  id: string,
+  data: Partial<{
+    name: string;
+    description: string;
+    objective: string;
+    agentId: string;
+    contactIds: string[];
+    status: Campaign["status"];
+  }>
+): Promise<{ campaign: Campaign }> {
+  return apiRequest(`/api/campaigns/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function getCampaignSummary(
   id: string
 ): Promise<{ summary: CampaignSummary }> {
